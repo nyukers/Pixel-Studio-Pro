@@ -1,0 +1,56 @@
+import { PresetPrompt } from "./types";
+
+export const PRESET_PROMPTS: PresetPrompt[] = [
+  { id: "retouch_remove_background", prompt: "Segment the primary subject from the background. Output the result as a PNG file with the background removed and replaced with a full, transparent alpha channel. Do not simulate transparency with a checkerboard or solid color background." },
+  { id: "retouch_brighten", prompt: "Brighten and contrast enhance old photo" },
+  { id: "retouch_colorize", prompt: "Colorize photo and enhance details" },
+  { id: "retouch_enhance_clarity", prompt: "Enhance image detail and clarity without altering composition" },
+  { id: "retouch_fix_damage", prompt: "Fix damage and improve overall quality" },
+  { id: "retouch_improve_skin", prompt: "Improve skin texture and reduce facial blemishes" },
+  { id: "retouch_remove_dust", prompt: "Remove dust and scratches" },
+  { id: "retouch_remove_frame", prompt: "Remove photo frame and repair torn edges" },
+  { id: "retouch_remove_noise", prompt: "Remove digital noise and grain from the photo" },
+  { id: "retouch_base", prompt: "Retouch this photo" },
+  { id: "retouch_restore_colors", prompt: "Restore faded colors to be vibrant and natural" },
+  { id: "retouch_sharpen", prompt: "Restore and sharpen faded image" },
+  { id: "retouch_soft_focus", prompt: "Apply a dreamy soft-focus effect" },
+  { id: "retouch_lighting_dramatic_studio", prompt: "Add dramatic studio lighting with high contrast" },
+  { id: "retouch_lighting_golden_hour", prompt: "Bathe the scene in warm, golden hour light" },
+  { id: "retouch_lighting_soft_window", prompt: "Simulate soft, natural light coming from a window" },
+  { id: "retouch_lighting_cinematic_moody", prompt: "Create a moody, cinematic atmosphere with low-key lighting" },
+  { id: "retouch_lighting_balanced", prompt: "Balance the lighting, brightening shadows and softening harsh highlights" },
+  { id: "retouch_lighting_neon_glow", prompt: "Introduce a vibrant, colorful neon glow" },
+];
+
+export const IMAGINATION_PRESET_PROMPTS: PresetPrompt[] = [
+  { id: "imagination_art_deco", prompt: "Dress the person(s) in elegant 1920s Art Deco fashion." },
+  { id: "imagination_pinup_1950s", prompt: "Reimagine the person(s) in the style of a classic 1950s pin-up illustration." },
+  { id: "imagination_rustic_cabin", prompt: "Depict the person(s) in a cozy, rustic cabin with a fireplace." },
+  { id: "imagination_cyberpunk", prompt: "Change the outfits to rugged, futuristic cyberpunk gear." },
+  { id: "imagination_fantasy_forest", prompt: "Transform the scene into a vibrant, fantastical forest with glowing plants." },
+  { id: "imagination_film_noir", prompt: "Place the character(s) in a classic, black-and-white film noir scene." },
+  { id: "imagination_futuristic_city", prompt: "Place the subject(s) in a futuristic city with flying cars." },
+  { id: "imagination_ancient_jungle", prompt: "Imagine the person(s) as explorers in a lush, ancient jungle." },
+  { id: "imagination_medieval", prompt: "Place the subject(s) in royal, medieval-era attire." },
+  { id: "imagination_studio_portrait", prompt: "Studio portrait of the subject(s) in modern, plain clothing against a light background." },
+  { id: "imagination_steampunk", prompt: "Place the subject(s) in a bustling steampunk city with brass machinery." },
+  { id: "imagination_sunny_beach", prompt: "Show the subject(s) on a beautiful, sunny beach at sunset." },
+  { id: "imagination_zen_garden", prompt: "Imagine the scene as a serene zen garden with cherry blossoms." },
+];
+
+export const ANIMATION_PRESET_PROMPTS: PresetPrompt[] = [
+    { id: "animation_dolly_zoom", prompt: "Create a cinematic dolly zoom effect on the subject." },
+    { id: "animation_gentle_sway", prompt: "Add a gentle swaying motion to the entire scene, like a gentle breeze." },
+    { id: "animation_gentle_zoom_in", prompt: "A gentle and slow zoom in on the center of the image." },
+    { id: "animation_gentle_zoom_out", prompt: "A gentle and slow zoom out from the center of the image." },
+    { id: "animation_pan_left_right", prompt: "A slow, smooth pan from left to right across the image." },
+    { id: "animation_pan_up_down", prompt: "A slow, smooth pan from top to bottom across the image." },
+    { id: "animation_parallax", prompt: "Create a subtle 2.5D parallax effect, with the foreground moving slightly faster than the background." },
+    { id: "animation_autumn_leaves", prompt: "Animate colorful autumn leaves gently falling and drifting across the scene." },
+    { id: "animation_falling_snow", prompt: "Animate gentle, slow-falling snowflakes across the entire scene, creating a peaceful winter atmosphere." },
+    { id: "animation_flickering_fire", prompt: "Animate any visible flames (candles, fireplace) to flicker realistically, casting a gentle, moving light on nearby objects." },
+    { id: "animation_rippling_water", prompt: "Create a subtle, realistic ripple effect across any visible water surfaces in the image, as if disturbed by a light breeze." },
+    { id: "animation_rising_steam", prompt: "Add a subtle, slow rising motion to any steam, smoke, or mist in the image." },
+    { id: "animation_shimmer", prompt: "Add a subtle shimmering or glowing effect to light sources in the image." },
+    { id: "animation_windy_day", prompt: "A gentle, continuous breeze blowing from left to right, making objects like flags, hair, or trees sway realistically." },
+];

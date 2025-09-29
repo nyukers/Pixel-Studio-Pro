@@ -1,10 +1,11 @@
 
 
+
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { ComparisonMode, Pan, ResultItem, AppMode, FilterState, FilterType, EditState, CropBox, PromptMode, AspectRatio } from '../types';
 import ComparisonSlider from './ComparisonSlider';
 import { SpinnerIcon } from './icons/SpinnerIcon';
-import { ImageIcon } from './icons/ImageIcon';
+import { EnhanceIcon } from './icons/EnhanceIcon';
 import { useTranslations } from '../hooks/useTranslations';
 import { EditIcon } from './icons/EditIcon';
 import { RotateLeft90Icon } from './icons/RotateLeft90Icon';
@@ -112,7 +113,6 @@ const CenterPanel: React.FC<CenterPanelProps> = ({
   const [customCursorPos, setCustomCursorPos] = useState({ x: -100, y: -100 });
   const [isMouseInPanel, setIsMouseInPanel] = useState(false);
   const [cropPreview, setCropPreview] = useState<CropPreview | null>(null);
-
 
   const createInitialState = (): EditState => ({
       actionKey: 'initialState',
@@ -704,7 +704,7 @@ const CenterPanel: React.FC<CenterPanelProps> = ({
     if (!hasImage) {
       return (
         <div className="flex flex-col items-center justify-center h-full text-gray-400">
-          <ImageIcon className="h-24 w-24 mb-4" />
+          <EnhanceIcon className="h-24 w-24 mb-4 text-yellow-400/30" />
           <h2 className="text-2xl font-semibold text-gray-300">{t.uploadPromptTitle}</h2>
           <p>{t.uploadPromptSubtitle}</p>
         </div>

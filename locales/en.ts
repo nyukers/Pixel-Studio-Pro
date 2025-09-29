@@ -1,5 +1,5 @@
 export default {
-  "appTitle": "Pixel Studio Pro",
+  "appTitle": "Pixel AI Studio",
   "appSubtitle": "Nyukers (C)opyright, 2025",
   "sourceImageLabel": "1. Image for Processing",
   "currentSourceAlt": "Current source",
@@ -39,7 +39,7 @@ export default {
   "processingSubMessage": "This can take a moment.",
   "exportingFrameMessage": "Exporting last frame...",
   "errorTitle": "An Error Occurred",
-  "uploadPromptTitle": "Upload your image to start",
+  "uploadPromptTitle": "Touch your imagination now!",
   "uploadPromptSubtitle": "Your processed images will appear here.",
   "beforeLabel": "Before",
   "afterLabel": "After",
@@ -59,6 +59,9 @@ export default {
   "rotateRight90Title": "Rotate 90° Right",
   "flipTitle": "Flip Horizontal",
   "straightenLabel": "Straighten",
+  // FIX: Add missing language keys for LanguageSwitcher component
+  "lang_en": "English",
+  "lang_uk": "Ukrainian",
   "retouchTab": "Retouch",
   "imaginationTab": "Imagination",
   "animationTab": "Animation",
@@ -69,10 +72,6 @@ export default {
   "zoomInTitle": "Zoom In",
   "zoomOutTitle": "Zoom Out",
   "settingsTitle": "Settings",
-  "languageLabel": "Language",
-  "lang_en": "English",
-  "lang_ru": "Russian",
-  "lang_uk": "Ukrainian",
   "systemInstructionLabel": "System Instruction",
   "systemInstructionPlaceholder": "e.g., You are a helpful assistant that edits photos with a professional and subtle touch.",
   "systemInstructionTooltip": "A global instruction that guides the AI's behavior for all image processing tasks.",
@@ -142,8 +141,8 @@ export default {
   "errorLoadingStyles": "Error loading prompts.",
   "promptsLoadedSuccess": "{count} prompts loaded",
 
-  "welcomeModalTitle": "Welcome to Pixel Studio Pro!",
-  "welcomeModalDescription": "Unleash your creativity with Pixel Studio Pro. This powerful all-in-one image editor and AI art studio lets you retouch, reimagine, and animate your photos with ease.\n\nKey Features:\n- AI-Powered Editing: Leverage the speed and versatility of the Gemini 2.5 Flash model for professional-grade retouching, stylization, and inpainting (masking).\n- Video Animation: Bring your images to life! Create stunning short videos from a single photo using the state-of-the-art Veo model.\n- Advanced Editor: Go beyond AI with a full suite of manual editing tools, including crop, rotate, flip, straighten, and apply artistic filters.\n- Batch Processing: Save time by applying the same prompt to multiple images at once.\n- Fully Customizable: Define your own artistic style by loading custom prompts from a public URL.\n\nWhether you're restoring old family photos, creating fantastical art, or animating a still moment, Pixel Studio Pro gives you the tools to make it happen.\n\nSincerely yours,\nNyukers.\nProject Page: https://github.com/nyukers/pixel-maker-pro",
+  "welcomeModalTitle": "Welcome to Pixel AI Studio!",
+  "welcomeModalDescription": "Unleash your creativity with Pixel AI Studio. This powerful all-in-one image editor and AI art studio lets you retouch, reimagine, and animate your photos with ease.\n\nKey Features:\n- AI-Powered Editing: Leverage the speed and versatility of the Gemini 2.5 Flash model for professional-grade retouching, stylization, and inpainting (masking).\n- Video Animation: Bring your images to life! Create stunning short videos from a single photo using the state-of-the-art Veo model.\n- Advanced Editor: Go beyond AI with a full suite of manual editing tools, including crop, rotate, flip, straighten, and apply artistic filters.\n- Batch Processing: Save time by applying the same prompt to multiple images at once.\n- Fully Customizable: Define your own artistic style by loading custom prompts from a public URL.\n\nWhether you're restoring old family photos, creating fantastical art, or animating a still moment, Pixel AI Studio gives you the tools to make it happen.\n\nSincerely yours,\nNyukers.\nProject Page: https://github.com/nyukers/pixel-maker-pro",
   "welcomeModalButton": "Get Started",
 
   "actionsTitle": "Actions",

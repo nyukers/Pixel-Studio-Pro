@@ -210,7 +210,7 @@ const App: React.FC = () => {
       console.error("Failed to save styles URL to localStorage", e);
     }
   }, [stylesUrl]);
-
+  
   const handleSystemInstructionChange = (value: string) => {
     setSystemInstruction(value);
   };
@@ -786,6 +786,12 @@ const App: React.FC = () => {
   const handleCloseWelcomeModal = () => {
     localStorage.setItem('hasSeenWelcomeModal', 'true');
     setIsWelcomeModalOpen(false);
+    // Request fullscreen on user interaction for a better experience
+    document.documentElement.requestFullscreen().catch(err => {
+      // It's common for this to fail if not triggered by a direct, trusted user event,
+      // so we'll log it for debugging but won't show an error to the user.
+      console.log(`Could not enter full-screen mode: ${err.message}`);
+    });
   };
 
   const handleExportVideoFrame = useCallback(async (result: ResultItem) => {
@@ -1042,7 +1048,7 @@ const App: React.FC = () => {
         onClearBatch={handleClearBatch}
         onRemoveBatchItem={handleRemoveBatchItem}
         onDownloadBatch={handleDownloadBatchResults}
-        onLoadStyles={handleLoadStyles}
+        onLoadStyles={() => handleLoadStyles()}
         loadedPresets={loadedPresets}
         animationAspectRatio={animationAspectRatio}
         setAnimationAspectRatio={setAnimationAspectRatio}

@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { useTranslations } from '../hooks/useTranslations';
 import { XIcon } from './icons/XIcon';
@@ -17,7 +18,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     systemInstruction, 
     onSystemInstructionChange,
     stylesUrl,
-    onStylesUrlChange
+    onStylesUrlChange,
 }) => {
   const t = useTranslations();
 

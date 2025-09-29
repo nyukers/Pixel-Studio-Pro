@@ -54,3 +54,8 @@ export const ANIMATION_PRESET_PROMPTS: PresetPrompt[] = [
     { id: "animation_shimmer", prompt: "Add a subtle shimmering or glowing effect to light sources in the image." },
     { id: "animation_windy_day", prompt: "A gentle, continuous breeze blowing from left to right, making objects like flags, hair, or trees sway realistically." },
 ];
+
+// FIX: Removed malformed line and correctly terminated array.
+export const GENERATE_PRESET_PROMPTS: PresetPrompt[] = [
+    { id: "generate_photorealistic_cat", prompt: "A photorealistic close-up portrait of a fluffy orange cat with green eyes, sitting in a sunbeam. shallow depth of field, high detail, sharp focus." },
+];

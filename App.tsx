@@ -1,19 +1,16 @@
-
-
-
 import React, { useState, useCallback, useEffect } from 'react';
-import { ResultItem, ComparisonMode, PromptMode, BatchItem, AppMode, LoadedPreset, AspectRatio } from './types';
-import { restorePhoto, animatePhoto, fillPhoto } from './services/geminiService';
+import { ResultItem, ComparisonMode, PromptMode, BatchItem, AppMode, LoadedPreset, AspectRatio, Action, AnalysisResult } from './types';
+import { restorePhoto, animatePhoto, fillPhoto, analyzeImage, generateImage } from './services/geminiService';
 import LeftPanel from './components/LeftPanel';
 import CenterPanel from './components/CenterPanel';
 import RightPanel from './components/RightPanel';
-// Fix: Import IMAGINATION_PRESET_PROMPTS to correctly check against all preset prompts.
-import { PRESET_PROMPTS, IMAGINATION_PRESET_PROMPTS, ANIMATION_PRESET_PROMPTS } from './constants';
+import { PRESET_PROMPTS, IMAGINATION_PRESET_PROMPTS, ANIMATION_PRESET_PROMPTS, GENERATE_PRESET_PROMPTS } from './constants';
 import SettingsModal from './components/SettingsModal';
 import UpscalingModal from './components/UpscalingModal';
 import DownloadModal from './components/DownloadModal';
 import WelcomeModal from './components/WelcomeModal';
 import { useTranslations } from './hooks/useTranslations';
+import ActionEditorModal from './components/ActionEditorModal';
 
 declare const piexif: any;
 
@@ -38,21 +35,17 @@ const getImageDimensions = (dataUrl: string): Promise<{ width: number; height: n
     });
 };
 
-// Renamed from parseCsv to be more generic
 const parsePromptFile = (fileText: string): LoadedPreset[] => {
     const rows: LoadedPreset[] = [];
-    const lines = fileText.trim().replace(/\r/g, '').split('\n'); // Normalize line endings
+    const lines = fileText.trim().replace(/\r/g, '').split('\n');
     if (lines.length < 2) {
-      if (!lines[0] || lines[0].trim() === '') return []; // Empty file
-      // Otherwise, fall through to header check for single-line files
+      if (!lines[0] || lines[0].trim() === '') return [];
     }
 
-    // Remove BOM (Byte Order Mark) if present, common in files from Excel
     if (lines[0].charCodeAt(0) === 0xFEFF) {
         lines[0] = lines[0].substring(1);
     }
     
-    // Simple header parsing
     const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
     const idIndex = headers.indexOf('id');
     const promptIndex = headers.indexOf('prompt');
@@ -65,10 +58,8 @@ const parsePromptFile = (fileText: string): LoadedPreset[] => {
     }
 
     for (let i = 1; i < lines.length; i++) {
-        // This is a simple parser and may not handle all CSV edge cases (e.g., newlines within quotes).
-        // It assumes a clean structure where prompts with commas are quoted.
         const values = lines[i].match(/(".*?"|[^",]+)(?=\s*,|\s*$)/g) || [];
-        if (values.length === 0) continue; // Skip empty lines
+        if (values.length === 0) continue;
 
         const cleanValues = values.map(v => v.trim().replace(/^"|"$/g, ''));
 
@@ -107,7 +98,7 @@ const App: React.FC = () => {
   const [prompt, setPrompt] = useState<string>('');
   const [comparisonMode, setComparisonMode] = useState<ComparisonMode>('slider');
   const [error, setError] = useState<string | null>(null);
-  const [promptMode, setPromptMode] = useState<PromptMode>('retouch');
+  const [promptMode, setPromptMode] = useState<PromptMode>('generate');
   const [imageDimensions, setImageDimensions] = useState<{ width: number; height: number } | null>(null);
   const [beforeImageDimensions, setBeforeImageDimensions] = useState<{ width: number; height: number } | null>(null);
   const [afterImageDimensions, setAfterImageDimensions] = useState<{ width: number; height: number } | null>(null);
@@ -124,9 +115,17 @@ const App: React.FC = () => {
   const [appMode, setAppMode] = useState<AppMode>('single');
   const [batchItems, setBatchItems] = useState<BatchItem[]>([]);
   const [isBatchProcessing, setIsBatchProcessing] = useState<boolean>(false);
-  const [loadedPresets, setLoadedPresets] = useState<Record<PromptMode, LoadedPreset[]>>({ retouch: [], imagination: [], animation: [] });
+  const [loadedPresets, setLoadedPresets] = useState<Record<PromptMode, LoadedPreset[]>>({ retouch: [], imagination: [], animation: [], generate: [] });
   const [isWelcomeModalOpen, setIsWelcomeModalOpen] = useState<boolean>(false);
   const [animationAspectRatio, setAnimationAspectRatio] = useState<AspectRatio>('16:9');
+  const [generateAspectRatio, setGenerateAspectRatio] = useState<AspectRatio>('1:1');
+  const [numberOfImages, setNumberOfImages] = useState<number>(1);
+  const [actions, setActions] = useState<Action[]>([]);
+  const [isActionEditorOpen, setIsActionEditorOpen] = useState<boolean>(false);
+  const [editingAction, setEditingAction] = useState<Action | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
+  const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
+  const [removeBgTolerance, setRemoveBgTolerance] = useState<number>(20);
 
   const [customPrompts, setCustomPrompts] = useState(() => {
     try {
@@ -134,19 +133,21 @@ const App: React.FC = () => {
       if (savedPrompts) {
         const parsed = JSON.parse(savedPrompts);
         if (Array.isArray(parsed)) {
-          return { retouch: parsed, imagination: [], animation: [] };
+          // Legacy format
+          return { retouch: parsed, imagination: [], animation: [], generate: [] };
         } else {
           return { 
             retouch: parsed.retouch || [], 
-            imagination: parsed.imagination || parsed.reimagine || [],
-            animation: parsed.animation || [] 
+            imagination: parsed.imagination || [],
+            animation: parsed.animation || [],
+            generate: parsed.generate || [],
           };
         }
       }
     } catch (e) {
       console.error("Failed to load custom prompts from localStorage", e);
     }
-    return { retouch: [], imagination: [], animation: [] };
+    return { retouch: [], imagination: [], animation: [], generate: [] };
   });
 
   const [systemInstruction, setSystemInstruction] = useState<string>('');
@@ -163,7 +164,6 @@ const App: React.FC = () => {
       console.error("Failed to check for welcome modal status in localStorage", e);
     }
     
-    // Load persisted state once on mount
     try {
       const savedInstruction = localStorage.getItem('systemInstruction');
       if (savedInstruction) {
@@ -172,6 +172,10 @@ const App: React.FC = () => {
       const savedStylesUrl = localStorage.getItem('stylesUrl');
       if (savedStylesUrl) {
         setStylesUrl(savedStylesUrl);
+      }
+      const savedActions = localStorage.getItem('actions');
+      if (savedActions) {
+        setActions(JSON.parse(savedActions));
       }
     } catch(e) {
       console.error("Failed to load persisted settings from localStorage", e);
@@ -184,7 +188,6 @@ const App: React.FC = () => {
     if (quotaCooldownEnd && timeNow < quotaCooldownEnd) {
       timer = setInterval(() => setTimeNow(Date.now()), 1000) as unknown as number;
     } else if (quotaCooldownEnd && timeNow >= quotaCooldownEnd) {
-      // Cooldown is over, reset it.
       setQuotaCooldownEnd(null);
     }
     return () => {
@@ -243,6 +246,7 @@ const App: React.FC = () => {
             retouch: [],
             imagination: [],
             animation: [],
+            generate: [],
         };
 
         parsedData.forEach(item => {
@@ -259,7 +263,6 @@ const App: React.FC = () => {
         console.error("Failed to load or parse prompts file:", e);
         let errorMessage = `Could not load prompts. ${e.message || 'Check the URL, file format, and sharing permissions.'}`;
         
-        // This specific error indicates a CORS problem, which is common with incorrect Google Drive links.
         if (e instanceof TypeError && e.message === 'Failed to fetch') {
             errorMessage = "Failed to fetch the URL due to browser security policies (CORS). The server must allow cross-origin requests. Please use a direct 'raw' file link. For Google Drive/Sheets, the only reliable method is to use 'File > Share > Publish to the web' and use the generated link.";
         }
@@ -286,7 +289,6 @@ const App: React.FC = () => {
 
       try {
           const beforeDims = beforeUrl ? await getImageDimensions(beforeUrl) : null;
-          // For videos, the 'after' dimensions are the same as the source thumbnail.
           const afterDims = (afterUrl && !result.videoUrl) ? await getImageDimensions(afterUrl) : beforeDims;
           setBeforeImageDimensions(beforeDims);
           setAfterImageDimensions(afterDims);
@@ -299,7 +301,7 @@ const App: React.FC = () => {
       }
   }, [originalImage?.dataUrl]);
 
-  const saveCustomPrompts = (prompts: { retouch: string[], imagination: string[], animation: string[] }) => {
+  const saveCustomPrompts = (prompts: { [key in PromptMode]: string[] }) => {
     try {
       localStorage.setItem('customPrompts', JSON.stringify(prompts));
     } catch (e) {
@@ -308,8 +310,7 @@ const App: React.FC = () => {
   };
 
   const addCustomPrompt = (newPrompt: string) => {
-    // Fix: Correctly check if the new prompt is already in the preset prompts by mapping the presets to strings.
-    const allPresetPrompts = [...PRESET_PROMPTS, ...IMAGINATION_PRESET_PROMPTS, ...ANIMATION_PRESET_PROMPTS].map(p => p.prompt);
+    const allPresetPrompts = [...PRESET_PROMPTS, ...IMAGINATION_PRESET_PROMPTS, ...ANIMATION_PRESET_PROMPTS, ...GENERATE_PRESET_PROMPTS].map(p => p.prompt);
     if (newPrompt && !customPrompts[promptMode].includes(newPrompt) && !allPresetPrompts.includes(newPrompt)) {
       const updatedPrompts = {
         ...customPrompts,
@@ -339,15 +340,17 @@ const App: React.FC = () => {
     setImageDimensions(null);
     setBeforeImageDimensions(null);
     setAfterImageDimensions(null);
-    setPromptMode('retouch');
+    setPromptMode('generate');
     setComparisonMode('slider');
     setQuotaCooldownEnd(null);
     setIsEditing(false);
     setIsMasking(false);
+    setAnalysisResult(null);
   }, []);
 
   const handleImageUpload = async (imageDataUrl: string, mimeType: string) => {
     handleClearAll();
+    setPromptMode('retouch'); // Switch to retouch mode after upload
     const imageState = { dataUrl: imageDataUrl, mimeType };
     setOriginalImage(imageState);
     setProcessingImage(imageState);
@@ -360,6 +363,7 @@ const App: React.FC = () => {
         sourceImageUrl: imageDataUrl,
     };
     setResults([originalResult]);
+    setAnalysisResult(null);
     await updateAndSelectResult(originalResult);
   };
 
@@ -409,7 +413,7 @@ const App: React.FC = () => {
         
         try {
             const base64Data = item.originalDataUrl.split(',')[1];
-            const result = await restorePhoto(base64Data, item.mimeType, prompt, systemInstruction);
+            const result = await restorePhoto(base64Data, item.mimeType, prompt, systemInstruction, removeBgTolerance);
 
             if (result) {
                 setBatchItems(prev => prev.map(i => i.id === item.id ? { ...i, status: 'completed', processedDataUrl: result.imageUrl } : i));
@@ -422,7 +426,7 @@ const App: React.FC = () => {
             setBatchItems(prev => prev.map(i => i.id === item.id ? { ...i, status: 'error', error: errorMessage } : i));
             if (err.message.startsWith('QUOTA_EXCEEDED:')) {
               setQuotaCooldownEnd(Date.now() + COOLDOWN_SECONDS * 1000);
-              break; // Stop batch on quota error
+              break;
             }
         }
     }
@@ -462,11 +466,69 @@ const App: React.FC = () => {
     });
   };
 
+  const handleGenerate = useCallback(async () => {
+    if (isLoading || (quotaCooldownEnd && Date.now() < quotaCooldownEnd)) return;
+
+    setIsLoading(true);
+    setError(null);
+    setLoadingMessage('Generating your masterpiece...');
+    
+    try {
+      const results = await generateImage(prompt, generateAspectRatio, numberOfImages);
+      
+      if (results && results.length > 0) {
+        const newResultItems: ResultItem[] = results.map((result, index) => ({
+          id: `gen-${Date.now()}-${index}`,
+          imageUrl: result.imageUrl,
+          mimeType: result.mimeType,
+          prompt: prompt,
+          sourceImageUrl: null, 
+        }));
+        
+        const firstResult = newResultItems[0];
+        const imageState = { dataUrl: firstResult.imageUrl, mimeType: firstResult.mimeType };
+
+        if (!originalImage) {
+          setOriginalImage(imageState);
+          setProcessingImage(imageState);
+          const originalResult: ResultItem = {
+            id: `original-${Date.now()}`,
+            imageUrl: firstResult.imageUrl,
+            mimeType: firstResult.mimeType,
+            prompt: "Original Image",
+            sourceImageUrl: firstResult.imageUrl,
+          };
+          setResults([originalResult, ...newResultItems.slice(1)]);
+          await updateAndSelectResult(originalResult);
+        } else {
+          setResults(prev => [...newResultItems, ...prev]);
+          await updateAndSelectResult(newResultItems[0]);
+        }
+        
+        setPromptMode('retouch');
+
+      } else {
+        throw new Error('The model did not return any images. Please try a different prompt.');
+      }
+    } catch (err: any) {
+      const errorMessage = err.message || 'An unexpected error occurred.';
+      setError(errorMessage.replace('QUOTA_EXCEEDED: ', ''));
+      console.error(err);
+      if (errorMessage.startsWith('QUOTA_EXCEEDED:')) {
+        setQuotaCooldownEnd(Date.now() + COOLDOWN_SECONDS * 1000);
+      }
+    } finally {
+      setIsLoading(false);
+      setLoadingMessage('');
+    }
+  }, [prompt, isLoading, quotaCooldownEnd, generateAspectRatio, numberOfImages, originalImage, updateAndSelectResult]);
+
   const handleRestore = useCallback(async () => {
     if (!processingImage || isLoading || (quotaCooldownEnd && Date.now() < quotaCooldownEnd)) return;
 
     setIsLoading(true);
     setError(null);
+    setAnalysisResult(null);
     
     try {
       const base64Data = processingImage.dataUrl.split(',')[1];
@@ -478,7 +540,7 @@ const App: React.FC = () => {
         if (result) {
           const newResult: ResultItem = {
             id: `res-${Date.now()}`,
-            imageUrl: processingImage.dataUrl, // Use source image as thumbnail
+            imageUrl: processingImage.dataUrl,
             videoUrl: result.videoUrl,
             mimeType: result.mimeType,
             prompt: prompt,
@@ -490,9 +552,9 @@ const App: React.FC = () => {
           throw new Error('The model did not return a video. Please try a different prompt.');
         }
 
-      } else { // Retouch or Imagination
-        setLoadingMessage(''); // Reset for image processing.
-        const result = await restorePhoto(base64Data, processingImage.mimeType, prompt, systemInstruction);
+      } else {
+        setLoadingMessage('');
+        const result = await restorePhoto(base64Data, processingImage.mimeType, prompt, systemInstruction, removeBgTolerance);
 
         if (result) {
           const newResult: ResultItem = {
@@ -521,7 +583,6 @@ const App: React.FC = () => {
 
     } catch (err: any) {
       const errorMessage = err.message || 'An unexpected error occurred.';
-      // Display the user-facing part of the error, and trigger cooldown if it's a quota error.
       setError(errorMessage.replace('QUOTA_EXCEEDED: ', ''));
       console.error(err);
       if (errorMessage.startsWith('QUOTA_EXCEEDED:')) {
@@ -531,7 +592,7 @@ const App: React.FC = () => {
       setIsLoading(false);
       setLoadingMessage('');
     }
-  }, [processingImage, prompt, isLoading, updateAndSelectResult, comparisonMode, quotaCooldownEnd, promptMode, systemInstruction, animationAspectRatio]);
+  }, [processingImage, prompt, isLoading, updateAndSelectResult, comparisonMode, quotaCooldownEnd, promptMode, systemInstruction, animationAspectRatio, removeBgTolerance]);
   
   const handleMask = useCallback(async (maskDataUrl: string) => {
     if (!processingImage || isLoading || (quotaCooldownEnd && Date.now() < quotaCooldownEnd)) return;
@@ -539,6 +600,7 @@ const App: React.FC = () => {
     setIsLoading(true);
     setError(null);
     setLoadingMessage('Applying targeted edit...');
+    setAnalysisResult(null);
 
     try {
         const base64Data = processingImage.dataUrl.split(',')[1];
@@ -584,6 +646,7 @@ const App: React.FC = () => {
 
   const handleUseResultAsSource = async (result: ResultItem) => {
     setProcessingImage({ dataUrl: result.imageUrl, mimeType: result.mimeType });
+    setAnalysisResult(null);
     await updateAndSelectResult(result);
   };
   
@@ -592,6 +655,7 @@ const App: React.FC = () => {
       setProcessingImage(originalImage);
       const originalResultItem = results.find(r => r.prompt === "Original Image");
       if (originalResultItem) {
+          setAnalysisResult(null);
           await updateAndSelectResult(originalResultItem);
       }
     }
@@ -618,12 +682,11 @@ const App: React.FC = () => {
     setResults(prev => [newResult, ...prev]);
     setProcessingImage({ dataUrl: newResult.imageUrl, mimeType: newResult.mimeType });
     setComparisonMode('single');
+    setAnalysisResult(null);
     await updateAndSelectResult(newResult);
   };
 
   const handleDeleteResult = useCallback(async (resultToDelete: ResultItem) => {
-    // Prevent deleting the original image as it's the root of the session.
-    // The user can use "Clear All" to start over.
     if (resultToDelete.prompt === 'Original Image') {
         return;
     }
@@ -631,9 +694,7 @@ const App: React.FC = () => {
     const newResults = results.filter(r => r.id !== resultToDelete.id);
     setResults(newResults);
 
-    // If the deleted result was the selected one, select a new one.
     if (selectedResult?.id === resultToDelete.id) {
-        // Default to the first item (which is either the newest or the original)
         const nextResult = newResults[0] ?? null;
         await updateAndSelectResult(nextResult);
     }
@@ -698,7 +759,6 @@ const App: React.FC = () => {
             dataUrl = piexif.insert(exifBytes, dataUrl);
           } catch (e) {
             console.error("Failed to write EXIF data:", e);
-            // Non-fatal error, proceed with download without EXIF
           }
         }
         
@@ -795,6 +855,135 @@ const App: React.FC = () => {
       setLoadingMessage("");
     }
   }, [t, updateAndSelectResult]);
+  
+  const handleOpenActionEditor = (action: Action | null) => {
+    setEditingAction(action);
+    setIsActionEditorOpen(true);
+  };
+  
+  const handleSaveAction = (action: Action) => {
+    setActions(prev => {
+        const existingIndex = prev.findIndex(a => a.id === action.id);
+        const newActions = [...prev];
+        if (existingIndex > -1) {
+            newActions[existingIndex] = action;
+        } else {
+            newActions.push(action);
+        }
+        try {
+            localStorage.setItem('actions', JSON.stringify(newActions));
+        } catch(e) { console.error("Failed to save actions", e); }
+        return newActions;
+    });
+    setIsActionEditorOpen(false);
+  };
+  
+  const handleDeleteAction = (actionId: string) => {
+    setActions(prev => {
+        const newActions = prev.filter(a => a.id !== actionId);
+        try {
+            localStorage.setItem('actions', JSON.stringify(newActions));
+        } catch(e) { console.error("Failed to save actions", e); }
+        return newActions;
+    });
+  };
+
+  const handleRunAction = async (action: Action) => {
+    if (!processingImage || isLoading) return;
+
+    setIsLoading(true);
+    setError(null);
+    setAnalysisResult(null);
+    
+    let currentImage = processingImage;
+    const allPresets = [...PRESET_PROMPTS, ...IMAGINATION_PRESET_PROMPTS, ...loadedPresets.retouch, ...loadedPresets.imagination];
+
+    for (let i = 0; i < action.steps.length; i++) {
+        const stepId = action.steps[i];
+        const preset = allPresets.find(p => p.id === stepId);
+        
+        const presetDisplayName = PRESET_PROMPTS.find(p => p.id === stepId) ? t[stepId as keyof typeof t] : (IMAGINATION_PRESET_PROMPTS.find(p => p.id === stepId) ? t[stepId as keyof typeof t] : (loadedPresets.retouch.find(p => p.id === stepId)?.displayName || loadedPresets.imagination.find(p => p.id === stepId)?.displayName));
+
+        if (!preset) {
+            const errorMsg = `Action failed: Preset with ID "${stepId}" not found.`;
+            setError(errorMsg);
+            console.error(errorMsg);
+            setIsLoading(false);
+            return;
+        }
+
+        setLoadingMessage(t.runningActionStatus
+            .replace('{actionName}', action.name)
+            .replace('{step}', (i + 1).toString())
+            .replace('{totalSteps}', action.steps.length.toString())
+            .replace('{promptName}', presetDisplayName || preset.prompt)
+        );
+
+        try {
+            const base64Data = currentImage.dataUrl.split(',')[1];
+            const result = await restorePhoto(base64Data, currentImage.mimeType, preset.prompt, systemInstruction, removeBgTolerance);
+
+            if (result) {
+                const newResult: ResultItem = {
+                    id: `res-action-${action.id}-${i}-${Date.now()}`,
+                    imageUrl: result.imageUrl,
+                    mimeType: result.mimeType,
+                    prompt: `Action: ${action.name} - ${presetDisplayName || preset.prompt}`,
+                    sourceImageUrl: currentImage.dataUrl,
+                };
+                
+                setResults(prev => [newResult, ...prev]);
+                currentImage = { dataUrl: newResult.imageUrl, mimeType: newResult.mimeType };
+                setProcessingImage(currentImage);
+                await updateAndSelectResult(newResult);
+            } else {
+                throw new Error(`Step ${i + 1} (${preset.prompt}) did not return an image.`);
+            }
+
+        } catch (err: any) {
+            setError(`Error during action step ${i + 1}: ${err.message}`);
+            console.error(err);
+            setIsLoading(false);
+            return;
+        }
+    }
+
+    setLoadingMessage('');
+    setIsLoading(false);
+  };
+
+  const handleAnalyzeImage = async () => {
+      if (!processingImage || isAnalyzing || isLoading) return;
+      
+      setIsAnalyzing(true);
+      setError(null);
+      setLoadingMessage(t.analyzingMessage);
+
+      try {
+          const base64Data = processingImage.dataUrl.split(',')[1];
+          const allPresets = [...PRESET_PROMPTS, ...IMAGINATION_PRESET_PROMPTS];
+          const presetIds = allPresets.map(p => p.id);
+          
+          const result = await analyzeImage(base64Data, processingImage.mimeType, presetIds);
+          
+          if (result) {
+              setAnalysisResult(result);
+          } else {
+              throw new Error("Analysis did not return a valid result.");
+          }
+
+      } catch (err: any) {
+          setError(err.message || 'An unexpected error occurred during analysis.');
+          console.error(err);
+      } finally {
+          setIsAnalyzing(false);
+          setLoadingMessage('');
+      }
+  };
+
+  const handleDismissAnalysis = () => {
+      setAnalysisResult(null);
+  };
 
   const cooldownRemaining = quotaCooldownEnd ? Math.max(0, Math.ceil((quotaCooldownEnd - timeNow) / 1000)) : 0;
   const isQuotaLimited = cooldownRemaining > 0;
@@ -810,6 +999,13 @@ const App: React.FC = () => {
         stylesUrl={stylesUrl}
         onStylesUrlChange={handleStylesUrlChange}
       />
+      <ActionEditorModal
+        isOpen={isActionEditorOpen}
+        onClose={() => setIsActionEditorOpen(false)}
+        onSave={handleSaveAction}
+        actionToEdit={editingAction}
+        availablePresets={[...PRESET_PROMPTS.map(p => ({...p, displayName: t[p.id as keyof typeof t] || p.prompt, category: 'retouch' as PromptMode})), ...IMAGINATION_PRESET_PROMPTS.map(p => ({...p, displayName: t[p.id as keyof typeof t] || p.prompt, category: 'imagination' as PromptMode})), ...loadedPresets.retouch, ...loadedPresets.imagination]}
+      />
       <UpscalingModal isOpen={isUpscaling} />
       <DownloadModal 
         isOpen={downloadModalState.isOpen}
@@ -823,7 +1019,7 @@ const App: React.FC = () => {
         processingImageUrl={processingImage?.dataUrl}
         prompt={prompt}
         setPrompt={setPrompt}
-        onRestore={handleRestore}
+        onRestore={promptMode === 'generate' ? handleGenerate : handleRestore}
         isLoading={isLoading}
         hasImage={!!originalImage}
         onReset={handleResetToOriginal}
@@ -850,6 +1046,20 @@ const App: React.FC = () => {
         loadedPresets={loadedPresets}
         animationAspectRatio={animationAspectRatio}
         setAnimationAspectRatio={setAnimationAspectRatio}
+        generateAspectRatio={generateAspectRatio}
+        setGenerateAspectRatio={setGenerateAspectRatio}
+        numberOfImages={numberOfImages}
+        setNumberOfImages={setNumberOfImages}
+        actions={actions}
+        onRunAction={handleRunAction}
+        onOpenActionEditor={handleOpenActionEditor}
+        onDeleteAction={handleDeleteAction}
+        isAnalyzing={isAnalyzing}
+        onAnalyzeImage={handleAnalyzeImage}
+        analysisResult={analysisResult}
+        onDismissAnalysis={handleDismissAnalysis}
+        removeBgTolerance={removeBgTolerance}
+        setRemoveBgTolerance={setRemoveBgTolerance}
       />
       <CenterPanel
         appMode={appMode}
@@ -858,7 +1068,7 @@ const App: React.FC = () => {
         mimeType={selectedResult?.mimeType ?? originalImage?.mimeType ?? 'image/png'}
         comparisonMode={comparisonMode}
         setComparisonMode={setComparisonMode}
-        isLoading={isLoading}
+        isLoading={isLoading || isAnalyzing}
         loadingMessage={loadingMessage}
         error={error}
         hasImage={!!originalImage}

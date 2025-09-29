@@ -1,0 +1,57 @@
+Pixel Studio Pro - Feature List
+
+This document outlines the full range of features and capabilities of the Pixel Studio Pro application.
+
+--- CORE MODES ---
+
+*   Single Image Mode: The main workspace for in-depth editing, retouching, and animation of a single image.
+*   Batch Processing Mode: Allows users to apply a single AI prompt to multiple images at once. The application provides a queue, real-time status tracking for each image (pending, processing, completed, error), and the ability to download all successful results.
+
+--- AI-POWERED CAPABILITIES (GEMINI & VEO MODELS) ---
+
+*   AI Retouching: A suite of presets designed to repair and enhance photos.
+    -   Damage Repair: Fixes scratches, dust, torn edges, and general damage.
+    -   Color Correction: Includes tools for colorizing black-and-white photos and restoring faded colors.
+    -   Enhancement: Improves clarity, detail, and sharpness.
+    -   Lighting Adjustments: Apply various lighting styles, from dramatic studio light to soft golden hour effects.
+*   AI Imagination: A creative suite to completely transform the style and setting of an image (e.g., transform a portrait into a cyberpunk character, a film noir scene, or a steampunk setting).
+*   AI Animation (Video Generation):
+    -   Brings still photos to life by generating short 4-5 second video clips using the Veo model.
+    -   Includes presets for camera movements (zoom, pan, parallax) and environmental effects (falling snow, rippling water, flickering fire).
+    -   Full Aspect Ratio Control (16:9, 1:1, 9:16, etc.) with a visual crop preview to show how the source image will be framed.
+*   AI Inpainting (Masking): A "Mask" tool allows users to paint over any part of an image. The AI then intelligently fills the selected area based on a text prompt, seamlessly blending the result.
+*   AI Analysis & Smart Suggestions: A "magic wand" feature that analyzes the loaded image and provides a text description along with a list of suggested preset prompts for improvement. Suggested presets are highlighted in the UI for easy access.
+
+--- ADVANCED FEATURES & AUTOMATION ---
+
+*   Actions (Macros): A powerful workflow automation tool.
+    -   Users can create, save, and run a custom sequence of preset prompts.
+    -   This allows for one-click execution of complex, multi-step tasks (e.g., a single "Action" could run "Fix Damage," then "Colorize," then "Enhance Clarity").
+*   Custom Prompts:
+    -   Users can write their own text prompts for maximum creative control.
+    -   Custom prompts can be saved for quick reuse.
+*   External Prompt Loading: Load a custom library of presets from a public URL (pointing to a CSV or TXT file). This enables users to create and share extensive, personalized prompt collections.
+*   System Instruction: A global setting that allows users to define a consistent personality or set of guiding principles for the AI across all tasks.
+
+--- MANUAL EDITING SUITE ---
+
+*   Non-Destructive Editor: A full manual editing mode with its own undo/redo history.
+    -   Transform Tools: Rotate (90-degree increments), flip horizontally, and straighten with a fine-control slider.
+    -   Crop Tool: A free-form cropping tool to reframe the image.
+    -   Artistic Filters: Apply adjustable filters like Sepia, Grayscale, and Vintage.
+    -   Pan & Zoom: Full control over the canvas view in both normal and edit modes.
+
+--- USER INTERFACE & EXPERIENCE ---
+
+*   History Panel: Every AI generation or manual edit is saved as a result in the history panel. Users can easily switch between results, use any result as the new source for further editing, or delete unwanted results.
+*   Comparison Views:
+    -   Slider View: An interactive slider to directly compare the "before" and "after" images.
+    -   Side-by-Side View: Displays the original and the processed image next to each other.
+*   Robust API Handling: The application intelligently manages API rate limits by implementing a cooldown period, preventing the user from getting locked out. The video generation process includes a resilient retry mechanism with backoff to handle temporary API limits gracefully.
+*   Video Frame Export: A one-click feature to extract the final frame of any generated animation and save it as a new high-quality PNG image in the history.
+*   Advanced Download Options:
+    -   Choose between PNG and JPEG formats.
+    -   Adjustable quality for JPEG exports.
+    -   Option to embed metadata comments into JPEG files.
+    -   A simple 2x client-side upscaling option before download.
+*   Welcome & Settings Modals: A clear, informative welcome screen for new users and a centralized modal for managing application settings.

@@ -1,16 +1,13 @@
-
-
 import React from 'react';
 import ImageUploader from './ImageUploader';
-import { PRESET_PROMPTS, IMAGINATION_PRESET_PROMPTS, ANIMATION_PRESET_PROMPTS } from '../constants';
+import { PRESET_PROMPTS, IMAGINATION_PRESET_PROMPTS, ANIMATION_PRESET_PROMPTS, GENERATE_PRESET_PROMPTS } from '../constants';
 import { RestoreIcon } from './icons/RestoreIcon';
 import { ResetIcon } from './icons/ResetIcon';
 import { PlusIcon } from './icons/PlusIcon';
 import { SaveIcon } from './icons/SaveIcon';
 import { TrashIcon } from './icons/TrashIcon';
 import { useTranslations } from '../hooks/useTranslations';
-import { PromptMode, AppMode, BatchItem, LoadedPreset, AspectRatio } from '../types';
-import { useLanguage } from '../context/LanguageContext';
+import { PromptMode, AppMode, BatchItem, LoadedPreset, AspectRatio, Action, AnalysisResult } from '../types';
 import { SettingsIcon } from './icons/SettingsIcon';
 import { XIcon } from './icons/XIcon';
 import { DownloadIcon } from './icons/DownloadIcon';
@@ -20,6 +17,10 @@ import { ClockIcon } from './icons/ClockIcon';
 import { CheckIcon } from './icons/CheckIcon';
 import { EnhanceIcon } from './icons/EnhanceIcon';
 import { CloudDownloadIcon } from './icons/CloudDownloadIcon';
+import { WorkflowIcon } from './icons/WorkflowIcon';
+import { PlayIcon } from './icons/PlayIcon';
+import { EditIcon } from './icons/EditIcon';
+import { WandIcon } from './icons/WandIcon';
 
 interface LeftPanelProps {
   onFilesSelected: (files: File[]) => void;
@@ -53,6 +54,20 @@ interface LeftPanelProps {
   loadedPresets: Record<PromptMode, LoadedPreset[]>;
   animationAspectRatio: AspectRatio;
   setAnimationAspectRatio: (ratio: AspectRatio) => void;
+  generateAspectRatio: AspectRatio;
+  setGenerateAspectRatio: (ratio: AspectRatio) => void;
+  numberOfImages: number;
+  setNumberOfImages: (num: number) => void;
+  actions: Action[];
+  onRunAction: (action: Action) => void;
+  onOpenActionEditor: (action: Action | null) => void;
+  onDeleteAction: (actionId: string) => void;
+  isAnalyzing: boolean;
+  onAnalyzeImage: () => void;
+  analysisResult: AnalysisResult | null;
+  onDismissAnalysis: () => void;
+  removeBgTolerance: number;
+  setRemoveBgTolerance: (value: number) => void;
 }
 
 const LeftPanel: React.FC<LeftPanelProps> = ({
@@ -87,23 +102,38 @@ const LeftPanel: React.FC<LeftPanelProps> = ({
   loadedPresets,
   animationAspectRatio,
   setAnimationAspectRatio,
+  generateAspectRatio,
+  setGenerateAspectRatio,
+  numberOfImages,
+  setNumberOfImages,
+  actions,
+  onRunAction,
+  onOpenActionEditor,
+  onDeleteAction,
+  isAnalyzing,
+  onAnalyzeImage,
+  analysisResult,
+  onDismissAnalysis,
+  removeBgTolerance,
+  setRemoveBgTolerance,
 }) => {
   const t = useTranslations();
-  const { language } = useLanguage();
   
   const currentPresets = (() => {
     switch(promptMode) {
       case 'retouch': return PRESET_PROMPTS;
       case 'imagination': return IMAGINATION_PRESET_PROMPTS;
       case 'animation': return ANIMATION_PRESET_PROMPTS;
-      default: return PRESET_PROMPTS;
+      case 'generate': return GENERATE_PRESET_PROMPTS;
+      default: return [];
     }
   })();
   
   const currentLoadedPresets = loadedPresets[promptMode] || [];
 
-  const allPresetPromptsFullText = [...PRESET_PROMPTS, ...IMAGINATION_PRESET_PROMPTS, ...ANIMATION_PRESET_PROMPTS].map(p => p.prompt);
-  const aspectRatios: AspectRatio[] = ['16:9', '9:16', '1:1', '4:3', '3:4'];
+  const allPresetPromptsFullText = [...PRESET_PROMPTS, ...IMAGINATION_PRESET_PROMPTS, ...ANIMATION_PRESET_PROMPTS, ...GENERATE_PRESET_PROMPTS].map(p => p.prompt);
+  const aspectRatios: AspectRatio[] = ['1:1', '16:9', '9:16', '4:3', '3:4'];
+  const suggestedPresetIds = analysisResult?.suggestions || [];
 
   const getButtonText = () => {
     if (isQuotaLimited) {
@@ -114,6 +144,9 @@ const LeftPanel: React.FC<LeftPanelProps> = ({
     }
     if (promptMode === 'animation') {
       return t.animateImageBtn;
+    }
+    if (promptMode === 'generate') {
+        return t.generateImageBtn;
     }
     return t.processImageBtn;
   };
@@ -129,9 +162,6 @@ const LeftPanel: React.FC<LeftPanelProps> = ({
     return t.startBatch;
   };
 
-// Fix: The 'title' prop is not a standard SVG prop in some TypeScript definitions.
-// To preserve the tooltip functionality while resolving the type error, wrap each icon in a `span` element
-// and apply the `title` attribute to the span.
   const getStatusIcon = (status: BatchItem['status']) => {
       switch (status) {
           case 'pending': return <span title={t.pending}><ClockIcon className="w-5 h-5 text-gray-400" /></span>;
@@ -145,7 +175,7 @@ const LeftPanel: React.FC<LeftPanelProps> = ({
     <div className="w-1/4 max-w-sm flex flex-col bg-gray-800 p-6 border-r border-gray-700 space-y-6 flex-shrink-0">
       <header className="flex items-start justify-between">
         <div>
-            <h1 className={`font-bold text-yellow-400 whitespace-nowrap ${language === 'en' ? 'text-xl' : 'text-lg'}`}>
+            <h1 className="text-xl font-bold text-yellow-400 whitespace-nowrap">
                 <EnhanceIcon className="w-8 h-8 inline-block align-middle mr-2 text-yellow-300"/>
                 {t.appTitle}
             </h1>
@@ -166,38 +196,45 @@ const LeftPanel: React.FC<LeftPanelProps> = ({
       <div className="flex-grow flex flex-col space-y-6 overflow-y-auto pr-2 -mr-2">
         {appMode === 'single' ? (
           <>
-            <ImageUploader onFilesSelected={onFilesSelected} currentImage={processingImageUrl} />
+            {promptMode !== 'generate' && <ImageUploader onFilesSelected={onFilesSelected} currentImage={processingImageUrl} />}
             <div>
-                <div className="flex border-b border-gray-700 mb-4">
+                <div className="grid grid-cols-2 gap-1 mb-4 p-1 bg-gray-900 rounded-lg">
+                    <button 
+                        onClick={() => setPromptMode('generate')}
+                        className={`w-full py-1.5 text-sm font-semibold rounded-md transition-colors ${promptMode === 'generate' ? 'bg-yellow-400 text-gray-900' : 'text-gray-400 hover:bg-gray-700'}`}
+                    >
+                        {t.generateTab}
+                    </button>
                     <button 
                         onClick={() => setPromptMode('retouch')}
-                        className={`flex-1 py-2 text-sm font-semibold transition-colors ${promptMode === 'retouch' ? 'text-yellow-300 border-b-2 border-yellow-300' : 'text-gray-400 hover:text-gray-100'}`}
+                        className={`w-full py-1.5 text-sm font-semibold rounded-md transition-colors ${promptMode === 'retouch' ? 'bg-yellow-400 text-gray-900' : 'text-gray-400 hover:bg-gray-700'}`}
                     >
                         {t.retouchTab}
                     </button>
                     <button 
                         onClick={() => setPromptMode('imagination')}
-                        className={`flex-1 py-2 text-sm font-semibold transition-colors ${promptMode === 'imagination' ? 'text-yellow-300 border-b-2 border-yellow-300' : 'text-gray-400 hover:text-gray-100'}`}
+                        className={`w-full py-1.5 text-sm font-semibold rounded-md transition-colors ${promptMode === 'imagination' ? 'bg-yellow-400 text-gray-900' : 'text-gray-400 hover:bg-gray-700'}`}
                     >
                         {t.imaginationTab}
                     </button>
                     <button 
                         onClick={() => setPromptMode('animation')}
-                        className={`flex-1 py-2 text-sm font-semibold transition-colors ${promptMode === 'animation' ? 'text-yellow-300 border-b-2 border-yellow-300' : 'text-gray-400 hover:text-gray-100'}`}
+                        className={`w-full py-1.5 text-sm font-semibold rounded-md transition-colors ${promptMode === 'animation' ? 'bg-yellow-400 text-gray-900' : 'text-gray-400 hover:bg-gray-700'}`}
                     >
                         {t.animationTab}
                     </button>
                 </div>
-                {promptMode === 'animation' && (
+
+                {(promptMode === 'animation' || promptMode === 'generate') && (
                   <div className="mb-4">
                     <label className="block text-sm font-medium text-gray-300 mb-2">{t.aspectRatioLabel}</label>
                     <div className="grid grid-cols-5 gap-2 text-xs">
                       {aspectRatios.map(ratio => (
                         <button
                           key={ratio}
-                          onClick={() => setAnimationAspectRatio(ratio)}
+                          onClick={() => promptMode === 'animation' ? setAnimationAspectRatio(ratio) : setGenerateAspectRatio(ratio)}
                           className={`py-2 rounded-md font-semibold transition ${
-                            animationAspectRatio === ratio
+                            (promptMode === 'animation' ? animationAspectRatio : generateAspectRatio) === ratio
                               ? 'bg-yellow-400 text-gray-900'
                               : 'bg-gray-700 text-gray-100 hover:bg-gray-600'
                           }`}
@@ -208,6 +245,25 @@ const LeftPanel: React.FC<LeftPanelProps> = ({
                     </div>
                   </div>
                 )}
+                
+                {promptMode === 'generate' && (
+                    <div className="mb-4">
+                        <label htmlFor="num-images-slider" className="block text-sm font-medium text-gray-300 mb-2">
+                        {t.numberOfImagesLabel} ({numberOfImages})
+                        </label>
+                        <input
+                        id="num-images-slider"
+                        type="range"
+                        min="1"
+                        max="4"
+                        step="1"
+                        value={numberOfImages}
+                        onChange={e => setNumberOfImages(parseInt(e.target.value, 10))}
+                        className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-yellow-400"
+                        />
+                    </div>
+                )}
+
               <label htmlFor="prompt-input" className="block text-sm font-medium text-gray-300 mb-2">
                 {t.promptLabel}
               </label>
@@ -229,12 +285,98 @@ const LeftPanel: React.FC<LeftPanelProps> = ({
                     <SaveIcon className="h-5 w-5"/>
                 </button>
               </div>
+
+              {promptMode === 'retouch' && prompt === PRESET_PROMPTS.find(p => p.id === 'retouch_remove_background')?.prompt && (
+                <div className="mt-4">
+                  <label htmlFor="remove-bg-tolerance" className="block text-sm font-medium text-gray-300 mb-2">
+                    {t.removeBgToleranceLabel} ({removeBgTolerance})
+                  </label>
+                  <input
+                    id="remove-bg-tolerance"
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={removeBgTolerance}
+                    onChange={e => setRemoveBgTolerance(parseInt(e.target.value, 10))}
+                    className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-yellow-400"
+                  />
+                </div>
+              )}
             </div>
 
+            {appMode === 'single' && promptMode !== 'animation' && promptMode !== 'generate' && (
+              <div>
+                <div className="flex justify-between items-center mb-2">
+                    <h3 className="text-sm font-medium text-gray-300 flex items-center"><WorkflowIcon className="w-5 h-5 mr-2" />{t.actionsTitle}:</h3>
+                    <button 
+                      onClick={() => onOpenActionEditor(null)}
+                      disabled={isLoading}
+                      className="p-1.5 text-gray-400 hover:text-yellow-400 bg-gray-700 rounded-md transition disabled:opacity-50 disabled:cursor-not-allowed"
+                      title={t.createAction}
+                    >
+                        <PlusIcon className="h-5 w-5"/>
+                    </button>
+                </div>
+                <div className="space-y-2">
+                  {actions.length === 0 ? (
+                    <p className="text-xs text-gray-400 text-center italic">{t.noActions}</p>
+                  ) : (
+                    actions.map(action => (
+                      <div key={action.id} className="flex items-center space-x-1">
+                          <button
+                            onClick={() => onRunAction(action)}
+                            disabled={isLoading || !hasImage}
+                            className="flex-grow text-xs text-left p-2 rounded-l-md transition truncate bg-gray-700 text-gray-100 hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+                            title={`${t.runAction}: ${action.name}`}
+                          >
+                            <PlayIcon className="h-4 w-4 flex-shrink-0" />
+                            <span className="truncate">{action.name}</span>
+                          </button>
+                           <button
+                              onClick={() => onOpenActionEditor(action)}
+                              className="bg-gray-600 p-2 hover:bg-yellow-400 hover:text-gray-900 transition"
+                              title={t.editAction}
+                          >
+                              <EditIcon className="h-4 w-4"/>
+                          </button>
+                          <button
+                              onClick={() => onDeleteAction(action.id)}
+                              className="bg-gray-600 p-2 rounded-r-md hover:bg-red-500 transition"
+                              title={t.deleteAction}
+                          >
+                              <TrashIcon className="h-4 w-4"/>
+                          </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+            
             <div>
               <div className="flex justify-between items-center mb-2">
                 <h3 className="text-sm font-medium text-gray-300">{t.presetPromptsTitle} ({currentPresets.length}):</h3>
+                <button
+                  onClick={onAnalyzeImage}
+                  disabled={isLoading || isAnalyzing || !hasImage || promptMode === 'animation' || promptMode === 'generate'}
+                  className="p-1.5 text-gray-400 hover:text-yellow-400 bg-gray-700 rounded-md transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  title={t.analyzeImage}
+                >
+                  {isAnalyzing ? <SpinnerIcon className="h-5 w-5 animate-spin" /> : <WandIcon className="h-5 w-5"/>}
+                </button>
               </div>
+
+              {analysisResult && (
+                  <div className="mb-4 p-3 bg-gray-900/50 border border-yellow-400/30 rounded-lg">
+                      <div className="flex justify-between items-center mb-2">
+                        <h4 className="text-sm font-semibold text-yellow-300">{t.aiSuggestionsTitle}</h4>
+                        <button onClick={onDismissAnalysis} className="text-xs text-gray-400 hover:text-gray-100">&times; {t.dismissSuggestions}</button>
+                      </div>
+                      <p className="text-xs text-gray-300 italic mb-2">"{analysisResult.description}"</p>
+                      <p className="text-xs text-gray-400">{t.presetPromptsTitle}:</p>
+                  </div>
+              )}
+
               <div className="grid grid-cols-1 gap-2">
                 {currentPresets.map((p) => (
                   <div key={p.id} className="flex items-center space-x-1">
@@ -243,6 +385,8 @@ const LeftPanel: React.FC<LeftPanelProps> = ({
                       className={`flex-grow text-xs text-left p-2 rounded-l-md transition truncate ${
                         prompt === p.prompt
                           ? 'bg-yellow-400 text-gray-900 font-semibold'
+                          : suggestedPresetIds.includes(p.id)
+                          ? 'bg-yellow-800/50 text-yellow-200 hover:bg-yellow-700/50 ring-1 ring-yellow-400'
                           : 'bg-gray-700 text-gray-100 hover:bg-gray-600'
                       }`}
                       title={p.prompt}
@@ -382,17 +526,19 @@ const LeftPanel: React.FC<LeftPanelProps> = ({
       
       {appMode === 'single' ? (
           <div className="space-y-3 pt-4 border-t border-gray-700">
-             <button
-                onClick={onReset}
-                disabled={isProcessingOriginal || !hasImage || isLoading}
-                className="w-full flex items-center justify-center bg-gray-700 text-gray-300 font-bold py-2 px-4 rounded-lg shadow-sm hover:bg-gray-600 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-            >
-                <ResetIcon className="h-5 w-5 mr-2"/>
-                {t.resetToOriginalBtn}
-            </button>
+             {promptMode !== 'generate' && (
+                <button
+                    onClick={onReset}
+                    disabled={isProcessingOriginal || !hasImage || isLoading}
+                    className="w-full flex items-center justify-center bg-gray-700 text-gray-300 font-bold py-2 px-4 rounded-lg shadow-sm hover:bg-gray-600 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                >
+                    <ResetIcon className="h-5 w-5 mr-2"/>
+                    {t.resetToOriginalBtn}
+                </button>
+             )}
             <button
               onClick={onRestore}
-              disabled={!hasImage || isLoading || isEditing || isMasking || isQuotaLimited}
+              disabled={(promptMode !== 'generate' && !hasImage) || isLoading || isEditing || isMasking || isQuotaLimited}
               className="w-full flex items-center justify-center bg-yellow-400 text-gray-900 font-bold py-3 px-4 rounded-lg shadow-md hover:bg-yellow-300 disabled:bg-gray-600 disabled:cursor-not-allowed disabled:text-gray-400 transition-all duration-300 ease-in-out transform hover:scale-105"
             >
               <RestoreIcon className="h-5 w-5 mr-2"/>

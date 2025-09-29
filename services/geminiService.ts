@@ -1,6 +1,7 @@
-import { GoogleGenAI, Modality } from "@google/genai";
+import { GoogleGenAI, Modality, Type } from "@google/genai";
 import { PRESET_PROMPTS } from '../constants';
 import { makeBackgroundTransparent } from "../utils/imageUtils";
+import { AnalysisResult } from "../types";
 
 const API_KEY = process.env.API_KEY;
 
@@ -85,6 +86,52 @@ async function callGeminiForImage(
         if (error.message.startsWith('Request was blocked') || 
             error.message.startsWith('The model did not return') || 
             error.message.startsWith('Model returned text')) {
+            throw error;
+        }
+        throw new Error(`Gemini API Error: ${error.message}`);
+    }
+    throw new Error("An unknown error occurred while communicating with the Gemini API.");
+  }
+}
+
+export async function generateImage(
+  prompt: string,
+  aspectRatio: string,
+  numberOfImages: number
+): Promise<{ imageUrl: string; mimeType: string }[] | null> {
+  try {
+    const response = await ai.models.generateImages({
+      model: 'imagen-4.0-generate-001',
+      prompt: prompt,
+      config: {
+        numberOfImages: numberOfImages,
+        outputMimeType: 'image/jpeg',
+        aspectRatio: aspectRatio,
+      },
+    });
+
+    if (!response.generatedImages || response.generatedImages.length === 0) {
+      throw new Error("The model did not return any images. Your prompt might have been blocked for safety reasons.");
+    }
+
+    const results = response.generatedImages.map(img => {
+      const base64ImageBytes: string = img.image.imageBytes;
+      const mimeType = 'image/jpeg';
+      return {
+        imageUrl: `data:${mimeType};base64,${base64ImageBytes}`,
+        mimeType: mimeType,
+      };
+    });
+    
+    return results;
+
+  } catch (error) {
+    console.error("Error calling Gemini Image Generation API:", error);
+    if (error instanceof Error) {
+        if (error.message.includes('quota') || error.message.includes('RESOURCE_EXHAUSTED')) {
+             throw new Error(`QUOTA_EXCEEDED: You have exceeded your API quota. To prevent further errors, the process button will be disabled for 60 seconds.`);
+        }
+        if (error.message.startsWith('The model did not return')) {
             throw error;
         }
         throw new Error(`Gemini API Error: ${error.message}`);
@@ -325,15 +372,13 @@ export async function restorePhoto(
   base64ImageData: string,
   mimeType: string,
   prompt: string,
-  systemInstruction?: string
+  systemInstruction?: string,
+  removeBgTolerance?: number
 ): Promise<{ imageUrl: string; mimeType: string } | null> {
   const removeBgPrompt = PRESET_PROMPTS.find(p => p.id === 'retouch_remove_background')?.prompt;
   const isRemoveBg = prompt === removeBgPrompt;
   let effectiveSystemInstruction = systemInstruction;
 
-  // For the specific task of removing the background, we use a highly specific system
-  // instruction to ensure the model produces a PNG with a proper alpha channel,
-  // overriding any user-defined general instructions that might conflict.
   if (isRemoveBg) {
     effectiveSystemInstruction = "Your function is to perform image segmentation. For the given image, identify the primary subject and isolate it. Your output must be a PNG image where the background is fully transparent (alpha channel value of 0). The subject's edges should be clean and anti-aliased against the transparency. Do not create a visual pattern like a checkerboard to represent transparency; the background pixels must be transparent.";
   }
@@ -342,14 +387,73 @@ export async function restorePhoto(
 
   if (result && isRemoveBg) {
     try {
-        const transparentImageUrl = await makeBackgroundTransparent(result.imageUrl);
+        const transparentImageUrl = await makeBackgroundTransparent(result.imageUrl, removeBgTolerance);
         return { ...result, imageUrl: transparentImageUrl };
     } catch (e) {
         console.error("Client-side transparency processing failed:", e);
-        // Fallback to returning the original result from the model if post-processing fails
         return result;
     }
   }
 
   return result;
+}
+
+export async function analyzeImage(
+  base64ImageData: string,
+  mimeType: string,
+  presetIds: string[]
+): Promise<AnalysisResult | null> {
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: {
+        parts: [
+          {
+            inlineData: {
+              data: base64ImageData,
+              mimeType: mimeType,
+            },
+          },
+        ],
+      },
+      config: {
+        systemInstruction: `You are an expert photo analyst. Your task is to briefly describe the provided image and then suggest 3 to 5 specific, actionable editing prompts to improve it. You must only choose from the following list of preset IDs: [${presetIds.join(', ')}]. Do not suggest any other actions. Return your response as a valid JSON object with two keys: "description" (a string) and "suggestions" (an array of strings, where each string is one of the provided preset IDs).`,
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            description: { type: Type.STRING },
+            suggestions: {
+              type: Type.ARRAY,
+              items: { type: Type.STRING },
+            },
+          },
+        },
+      },
+    });
+
+    const jsonString = response.text.trim();
+    if (!jsonString) {
+        throw new Error("Model returned an empty response.");
+    }
+    
+    const cleanJsonString = jsonString.replace(/^```json\n?/, '').replace(/\n?```$/, '');
+    const parsed = JSON.parse(cleanJsonString);
+
+    if (parsed && typeof parsed.description === 'string' && Array.isArray(parsed.suggestions)) {
+        return parsed as AnalysisResult;
+    } else {
+        throw new Error("Model returned malformed JSON.");
+    }
+
+  } catch (error) {
+    console.error("Error calling Gemini API for analysis:", error);
+    if (error instanceof Error) {
+        if (error.message.includes('quota') || error.message.includes('RESOURCE_EXHAUSTED')) {
+             throw new Error(`QUOTA_EXCEEDED: You have exceeded your API quota.`);
+        }
+        throw new Error(`Gemini Analysis Error: ${error.message}`);
+    }
+    throw new Error("An unknown error occurred during image analysis.");
+  }
 }
